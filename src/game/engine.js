@@ -132,43 +132,79 @@ function judge(state) {
   return state;
 }
 
-// Scores every card the bot can afford and plays the best one. It weighs the
-// same things a person does: finish if you can, stop the rival if they are
-// about to finish, fill an empty slot, shore up a shaky run, and respect the
-// arena bonus.
-const WINNING_MOVE = 500;
+// The bot scores every card it can afford and plays the best one. There are
+// three ways a duel ends -- hit the target, crash the rival, or lead on score
+// when the compute budget runs out -- and a competent player weighs all three
+// at once, differently depending on how many turns are left.
+const WINNING_MOVE = 1000;
 
 export function scoreMove(state, side, card) {
   const me = state[side];
   const foe = state[other(side)];
   const { arena } = state;
 
-  const foeThreat = foe.metrics.score / arena.targetScore;
-  const fragile = me.metrics.stability < 55;
-  let value = -card.cost * 1.5; // cheap plays leave compute for later turns
+  const turnsLeft = Math.max(1, arena.maxTurns - state.turn + 1);
+  const endgame = turnsLeft <= 2;
+  const mult = (c) => (c.type === arena.bonusType ? 1.35 : 1);
+
+  // How threatening each side is, as a fraction of the finish line.
+  const foeProgress = foe.metrics.score / arena.targetScore;
+  const myProgress = me.metrics.score / arena.targetScore;
+  const behind = me.metrics.score < foe.metrics.score;
+  const fragile = me.metrics.stability <= 55;
+
+  let value = -card.cost * (endgame ? 0.4 : 1.5); // late on, hoarding compute is pointless
 
   if (card.type === 'SABOTAGE') {
     const stabilityHit = Math.abs(card.stats.targetStability || 0);
     const scoreHit = Math.abs(card.stats.targetAcc || 0);
-    value += stabilityHit * 0.55 + scoreHit * 1.2 + (card.stats.targetLossSpike || 0) * 8;
-    // Hitting the rival matters far more once they are near the target.
-    value *= 0.75 + foeThreat * 1.6;
-    if (foe.metrics.stability + (card.stats.targetStability || 0) <= 0) value += WINNING_MOVE;
+
+    // Crashing the rival ends the duel outright.
+    if (foe.metrics.stability + (card.stats.targetStability || 0) <= 0) return WINNING_MOVE + stabilityHit;
+
+    // Every turn spent attacking is a turn not spent scoring, and scoring is
+    // how duels are usually won. So an attack is discounted almost to nothing
+    // early and only becomes urgent as the rival approaches the target.
+    const urgency = Math.max(0, foeProgress - 0.45) / 0.55; // 0 well behind, 1 at the line
+    const raw =
+      scoreHit * (2.2 + (endgame ? 1.5 : 0)) + stabilityHit * 0.5 + (card.stats.targetLossSpike || 0) * 6;
+
+    value += raw * (0.2 + urgency * 1.8);
+
+    // Chip damage still earns its turn if it can actually finish them in time.
+    const hitsToCrash = stabilityHit > 0 ? Math.ceil(foe.metrics.stability / stabilityHit) : 99;
+    if (hitsToCrash <= turnsLeft) value += 25 / hitsToCrash;
+
     return value;
   }
 
-  const mult = (c) => (c.type === arena.bonusType ? 1.35 : 1);
+  // Score in this game is cumulative: installing into an already-filled slot
+  // still adds the new card's full boost. A "replacement" is therefore worth
+  // exactly as much as a fresh install, which is what makes high-boost cards
+  // playable every single turn.
   const gain = (card.stats.accBoost || 0) * mult(card);
   const held = me.arch[card.slot];
-  // Swapping a slot only earns the difference, so an upgrade must be real.
-  const net = held ? gain - (held.stats.accBoost || 0) * mult(held) : gain;
 
-  value += net * 1.4;
-  value += (card.stats.lossReduce || 0) * 10;
-  value += (card.stats.stabilityBoost || 0) * (fragile ? 0.9 : 0.25);
+  // Reaching the target wins immediately.
+  if (me.metrics.score + gain >= arena.targetScore) return WINNING_MOVE + gain;
+
+  // Score is the currency of both remaining win conditions, so it dominates
+  // once the end is in sight.
+  value += gain * (endgame ? 3.2 : 1.6);
+  if (endgame && behind) value += gain * 0.8; // must out-score them to take the tiebreak
+  value += (card.stats.lossReduce || 0) * 8;
   value -= Math.max(0, card.stats.latencyMs || 0) * 0.05;
-  if (!held) value += 12; // an empty slot is a wasted part of the model
-  if (me.metrics.score + net >= arena.targetScore) value += WINNING_MOVE;
+
+  // Completing the pipeline is worth a nudge -- it reads as a real model on
+  // the board -- but never at the expense of a bigger scoring play.
+  if (!held && !endgame) value += 6;
+
+  // Staying alive only matters while there is a game left to lose.
+  const stabilityWorth = fragile ? 1.1 : 0.2;
+  value += (card.stats.stabilityBoost || 0) * (endgame ? stabilityWorth * 0.3 : stabilityWorth);
+
+  // If the rival is closing fast and we are not, defence buys the turns we need.
+  if (foeProgress > 0.8 && foeProgress > myProgress) value += (card.stats.stabilityBoost || 0) * 0.4;
 
   return value;
 }

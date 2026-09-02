@@ -14,7 +14,9 @@ import Lobby from './screens/Lobby';
 import Duel from './screens/Duel';
 import Result from './screens/Result';
 
-const BOT_DECK = ALL_CARDS.filter((c) => c.unlockedDefault || c.type === 'SABOTAGE').map((c) => c.id);
+// The rival lab plays with the full card pool, so it stays a real opponent even
+// once you have unlocked everything.
+const BOT_DECK = ALL_CARDS.map((c) => c.id);
 
 export default function App() {
   const [screen, setScreen] = useState('INTRO');
