@@ -14,7 +14,9 @@ import Lobby from './screens/Lobby';
 import Duel from './screens/Duel';
 import Result from './screens/Result';
 
-const BOT_DECK = ALL_CARDS.filter((c) => c.unlockedDefault || c.type === 'SABOTAGE').map((c) => c.id);
+// The rival lab plays with the full card pool, so it stays a real opponent even
+// once you have unlocked everything.
+const BOT_DECK = ALL_CARDS.map((c) => c.id);
 
 export default function App() {
   const [screen, setScreen] = useState('INTRO');
@@ -75,7 +77,11 @@ export default function App() {
   const handleHostEvent = useCallback(
     (ev) => {
       if (ev.type === 'ROOM_OPEN') {
-        setNet((n) => ({ ...n, status: 'waiting', code: ev.code }));
+        setNet((n) => ({ ...n, status: 'waiting', code: ev.code, error: '' }));
+      } else if (ev.type === 'RECONNECTING') {
+        // The room is briefly unreachable; say so rather than showing a code
+        // that nobody can join.
+        setNet((n) => (n.status === 'ready' ? n : { ...n, status: 'reconnecting' }));
       } else if (ev.type === 'ERROR') {
         setNet((n) => ({ ...n, status: 'error', error: ev.message }));
       } else if (ev.type === 'DISCONNECTED') {
@@ -99,12 +105,16 @@ export default function App() {
   const handleGuestEvent = useCallback(
     (ev) => {
       if (ev.type === 'CONNECTED') {
-        setNet((n) => ({ ...n, status: 'joined' }));
+        setNet((n) => ({ ...n, status: 'joined', error: '' }));
         netRef.current?.send({
           t: 'HELLO',
           username: profileRef.current.username,
           deck: profileRef.current.deck
         });
+      } else if (ev.type === 'JOINING') {
+        setNet((n) => ({ ...n, status: 'connecting', attempt: ev.attempt, of: ev.of }));
+      } else if (ev.type === 'RECONNECTING') {
+        setNet((n) => (n.status === 'ready' ? n : { ...n, status: 'reconnecting' }));
       } else if (ev.type === 'ERROR') {
         setNet((n) => ({ ...n, status: 'error', error: ev.message }));
       } else if (ev.type === 'DISCONNECTED') {
