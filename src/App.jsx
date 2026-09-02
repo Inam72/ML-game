@@ -93,7 +93,9 @@ export default function App() {
           setNet((n) => ({ ...n, status: 'ready', opponent: msg.username }));
           netRef.current?.send({ t: 'WELCOME', hostName: profileRef.current.username, arena: arenaRef.current });
         } else if (msg.t === 'PLAY' && duelRef.current) {
-          commitDuel(broadcast(playCard(duelRef.current, 'p2', msg.instanceId)));
+          // A played card is the whole turn, so the host closes it out too.
+          const played = playCard(duelRef.current, 'p2', msg.instanceId);
+          commitDuel(broadcast(played.p2.playedThisTurn ? endTurn(played, 'p2') : played));
         } else if (msg.t === 'END_TURN' && duelRef.current) {
           commitDuel(broadcast(endTurn(duelRef.current, 'p2')));
         }
@@ -207,16 +209,20 @@ export default function App() {
 
   const isGuest = mode === 'ONLINE' && mySide === 'p2';
 
+  // One card is one turn: playing it immediately hands over to the opponent.
   const handlePlay = (card) => {
     if (isGuest) {
       netRef.current?.send({ t: 'PLAY', instanceId: card.instanceId });
       return;
     }
-    const next = playCard(duelRef.current, 'p1', card.instanceId);
+    const played = playCard(duelRef.current, 'p1', card.instanceId);
+    const next = played.p1.playedThisTurn ? endTurn(played, 'p1') : played;
     commitDuel(mode === 'ONLINE' ? broadcast(next) : next);
+    if (mode === 'SOLO' && next.p1.endedTurn && !next.winner) runBotTurn();
   };
 
-  const handleEndTurn = () => {
+  // Only reachable when the hand holds nothing affordable.
+  const handleSkipTurn = () => {
     if (isGuest) {
       netRef.current?.send({ t: 'END_TURN' });
       return;
@@ -327,7 +333,7 @@ export default function App() {
           botThinking={botThinking}
           opponentGone={mode === 'ONLINE' && net.status === 'gone'}
           onPlay={handlePlay}
-          onEndTurn={handleEndTurn}
+          onSkipTurn={handleSkipTurn}
           onLeave={leaveMatch}
         />
       )}

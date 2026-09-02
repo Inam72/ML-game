@@ -77,7 +77,56 @@ function Pipeline({ side, isYou }) {
   );
 }
 
-export default function Duel({ duel, mySide, mode, botThinking, opponentGone, onPlay, onEndTurn, onLeave }) {
+// The match log lives in a little terminal window pinned to the bottom-right,
+// so the board itself stays about the two models facing each other.
+function LogTerminal({ log, foeName, foeHandCount }) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <aside className={`feed ${open ? '' : 'feed--min'}`}>
+      <div className="feed__bar">
+        <span className="feed__dots" aria-hidden="true">
+          <i /> <i /> <i />
+        </span>
+        <span className="feed__path">~/duel.log</span>
+        <button
+          className="feed__toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={open ? 'Minimise log' : 'Open log'}
+        >
+          {open ? '—' : '▢'}
+        </button>
+      </div>
+
+      {open && (
+        <>
+          <ul className="feed__list">
+            {log.map((line, i) => (
+              <li key={`${i}-${line}`} className={i === 0 ? 'is-latest' : ''}>
+                <span className="feed__prompt" aria-hidden="true">
+                  {i === 0 ? '>' : '$'}
+                </span>
+                <span className="feed__line">{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="feed__foot">
+            <span className="feed__prompt" aria-hidden="true">
+              $
+            </span>
+            <span>
+              {foeName} holds {foeHandCount} card{foeHandCount === 1 ? '' : 's'}
+            </span>
+            <span className="feed__caret" aria-hidden="true" />
+          </div>
+        </>
+      )}
+    </aside>
+  );
+}
+
+export default function Duel({ duel, mySide, mode, botThinking, opponentGone, onPlay, onSkipTurn, onLeave }) {
   const me = duel[mySide];
   const foe = duel[other(mySide)];
   const { arena } = duel;
@@ -92,6 +141,9 @@ export default function Duel({ duel, mySide, mode, botThinking, opponentGone, on
   const canAct = !duel.winner && !yourTurnOver && !opponentGone;
   const canPlayPicked = canAct && picked && !me.playedThisTurn && me.energy >= picked.cost;
 
+  // Playing a card is the whole turn, so the only thing left to offer is a way
+  // out of a hand nobody can afford.
+  const stuck = canAct && !me.hand.some((c) => c.cost <= me.energy);
   const waitingOnFoe = yourTurnOver && !duel.winner;
   const waitLabel = mode === 'SOLO' ? 'Rival lab is training…' : `Waiting for ${foe.username}…`;
 
@@ -127,23 +179,6 @@ export default function Duel({ duel, mySide, mode, botThinking, opponentGone, on
 
       <section className="board">
         <Pipeline side={me} isYou />
-
-        <div className="feed">
-          <h3 className="feed__title">What just happened</h3>
-          <ul className="feed__list">
-            {duel.log.map((line, i) => (
-              <li key={`${i}-${line}`} className={i === 0 ? 'is-latest' : ''}>
-                {line}
-              </li>
-            ))}
-          </ul>
-          <div className="feed__foot">
-            <span className="muted small">
-              {foe.username} holds {foeHandCount} card{foeHandCount === 1 ? '' : 's'}
-            </span>
-          </div>
-        </div>
-
         <Pipeline side={foe} isYou={false} />
       </section>
 
@@ -159,15 +194,17 @@ export default function Duel({ duel, mySide, mode, botThinking, opponentGone, on
           <div className="handbar__rule">
             {duel.winner ? (
               <span className="badge badge--done">Duel over</span>
-            ) : me.playedThisTurn ? (
-              <span className="badge badge--used">Card played — end your turn</span>
+            ) : waitingOnFoe ? (
+              <span className="badge badge--wait">{waitLabel}</span>
             ) : (
-              <span className="badge badge--ready">1 card left to play this turn</span>
+              <span className="badge badge--ready">Play one card — that ends your turn</span>
             )}
           </div>
-          <button className="btn btn--primary" onClick={onEndTurn} disabled={!canAct}>
-            {waitingOnFoe ? waitLabel : 'End turn ⏱️'}
-          </button>
+          {stuck && (
+            <button className="btn btn--ghost btn--tiny" onClick={onSkipTurn}>
+              Skip turn ⏱️
+            </button>
+          )}
         </div>
 
         <div className="hand">
@@ -203,6 +240,8 @@ export default function Duel({ duel, mySide, mode, botThinking, opponentGone, on
           <p className="muted">Tap a card in your hand to see what it does before you play it.</p>
         )}
       </section>
+
+      <LogTerminal log={duel.log} foeName={foe.username} foeHandCount={foeHandCount} />
 
       {opponentGone && (
         <div className="overlay">
