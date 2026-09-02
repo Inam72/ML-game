@@ -8,7 +8,7 @@ import App from './App';
 afterEach(cleanup);
 
 const hand = () => document.querySelector('.hand');
-const learnBar = () => document.querySelector('.learn--bar');
+const learnPanel = () => document.querySelector('.learn--rail');
 
 async function startSoloDuel() {
   const user = userEvent.setup({ delay: null });
@@ -41,9 +41,9 @@ describe('solo duel flow', () => {
     await user.click(affordable);
 
     // Selecting explains the card before committing to it.
-    expect(within(learnBar()).getByText(cardName)).toBeDefined();
+    expect(within(learnPanel()).getByText(cardName)).toBeDefined();
 
-    await user.click(within(learnBar()).getByRole('button'));
+    await user.click(within(learnPanel()).getByRole('button'));
 
     expect(within(hand()).getAllByRole('button')).toHaveLength(4);
 
