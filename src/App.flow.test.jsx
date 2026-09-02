@@ -25,11 +25,12 @@ async function startSoloDuel() {
 }
 
 describe('solo duel flow', () => {
-  test('a player can read a card, play it, and finish the turn', async () => {
+  test('playing a card is the whole turn — no end-turn button needed', async () => {
     const user = await startSoloDuel();
 
     expect(screen.getByText('Your model')).toBeDefined();
-    expect(screen.getByText(/1 card left to play this turn/i)).toBeDefined();
+    expect(screen.getByText(/play one card — that ends your turn/i)).toBeDefined();
+    expect(screen.queryByRole('button', { name: /end turn/i })).toBeNull();
     expect(screen.getByText(/tap a card in your hand/i)).toBeDefined();
 
     // Pick a card the player can actually afford this turn.
@@ -45,10 +46,9 @@ describe('solo duel flow', () => {
     await user.click(within(learnBar()).getByRole('button'));
 
     expect(within(hand()).getAllByRole('button')).toHaveLength(4);
-    expect(screen.getByText(/card played — end your turn/i)).toBeDefined();
 
-    // The rival lab answers on a short delay, then the turn advances.
-    await user.click(screen.getByRole('button', { name: /end turn/i }));
+    // The turn ends on the play itself: the rival lab answers on a short
+    // delay, then the turn advances with no further click.
     await waitFor(() => expect(screen.getByText(/Turn 2\/8/)).toBeDefined(), { timeout: 4000 });
   }, 20000);
 

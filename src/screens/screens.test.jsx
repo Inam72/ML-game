@@ -102,7 +102,7 @@ describe('screens render without crashing', () => {
         botThinking={false}
         opponentGone={false}
         onPlay={noop}
-        onEndTurn={noop}
+        onSkipTurn={noop}
         onLeave={noop}
       />
     );
@@ -118,7 +118,7 @@ describe('screens render without crashing', () => {
         botThinking={false}
         opponentGone={false}
         onPlay={noop}
-        onEndTurn={noop}
+        onSkipTurn={noop}
         onLeave={noop}
       />
     );
@@ -155,7 +155,7 @@ describe('screens render without crashing', () => {
         botThinking={false}
         opponentGone={false}
         onPlay={noop}
-        onEndTurn={noop}
+        onSkipTurn={noop}
         onLeave={noop}
       />
     );

@@ -46,7 +46,7 @@ export function createDuel({ arena, p1Name, p1Deck, p2Name, p2Deck }) {
     p2: newSide(p2Name, p2Deck)
   };
   log(state, `Goal: reach ${arena.targetScore}% ${arena.metricName} within ${arena.maxTurns} turns.`);
-  log(state, `${arena.icon} Duel begins at ${arena.name}!`);
+  log(state, '⚔️ Duel begins!');
   return state;
 }
 
