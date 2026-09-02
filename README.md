@@ -1,70 +1,83 @@
-# GitHub Codespaces ♥️ React
+# AI Architect Duel
 
-Welcome to your shiny new Codespace running React! We've got everything fired up and running for you to explore React.
+A card game that teaches how modern machine-learning systems are actually built. Players stack a
+model out of real components — a backbone, an attention mechanism, an optimizer and a defence — and
+race a rival to hit a target metric in a real-world arena. Every card carries a plain-English
+explanation, so the ML content is learned through play rather than read as a lecture.
 
-You've got a blank canvas to work on from a git perspective as well. There's a single initial commit with the what you're seeing right now - where you go from here is up to you!
+Written for high-school age and up. No maths background required.
 
-Everything you do here is contained within this one codespace. There is no repository on GitHub yet. If and when you’re ready you can click "Publish Branch" and we’ll create your repository and push up your project. If you were just exploring then and have no further need for this code then you can simply delete your codespace and it's gone forever.
+## What it teaches
 
-This project was bootstrapped for you with [Vite](https://vitejs.dev/).
+| Game concept | Real idea behind it |
+| --- | --- |
+| Backbone slot | Model architectures: Mixture-of-Experts, Vision Transformers, state space models, ConvNeXt |
+| Attention slot | FlashAttention, rotary position embeddings, gated activations |
+| Optimizer slot | AdamW with warmup and cosine decay, the Lion optimizer |
+| Defence slot | Gradient clipping, spectral normalization |
+| Sabotage cards | Genuine failure modes: exploding gradients and NaN loss, GPU out-of-memory, distribution shift |
+| Compute energy | Training under a limited GPU budget |
+| Arenas | Where ML gets used: particle physics, self-driving, medical imaging, exoplanet search, weather, BCI |
 
-## Available Scripts
+Arenas grant a 35% bonus to one card type, so the winning strategy depends on matching the method to
+the problem — the same judgement call a real practitioner makes.
 
-In the project directory, you can run:
+## Playing
 
-### `npm start`
+**Practice duel** — play the rival lab AI. Best way to learn the cards.
 
-We've already run this for you in the `Codespaces: server` terminal window below. If you need to stop the server for any reason you can just run `npm start` again to bring it back online.
+**Play a friend** — one player hosts and gets a five-letter room code; the other types it in on the
+hub screen. The two browsers connect directly to each other over WebRTC, so there is no server to run
+and no account to create.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000/](http://localhost:3000/) in the built-in Simple Browser (`Cmd/Ctrl + Shift + P > Simple Browser: Show`) to view your running application.
+Tap any card to read what it really does before committing to play it.
 
-The page will reload automatically when you make changes.\
-You may also see any lint errors in the console.
+## Running locally
 
-### `npm test`
+```bash
+npm install
+npm start        # dev server on http://localhost:5173
+npm test         # engine rules + screen rendering + a full click-through duel
+npm run build    # production bundle in dist/
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+In GitHub Codespaces the dev server is already configured for the forwarded HTTPS URL
+(`server.allowedHosts` and the HMR client port are set in `vite.config.js`).
 
-### `npm run build`
+## Deploying
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+The whole game is static — multiplayer runs browser-to-browser — so any static host works.
+`netlify.toml` is included and needs no configuration:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- Build command: `npm run build`
+- Publish directory: `dist`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## How multiplayer works
 
-## Learn More
+There is no game server. The player who hosts also runs the rules:
 
-You can learn more in the [Vite documentation](https://vitejs.dev/guide/).
+1. The guest sends **intents** (`PLAY`, `END_TURN`) over a WebRTC data channel.
+2. The host applies them with the same pure engine used in solo play, then broadcasts the new state.
+3. Before sending, the host masks its own hand, so the guest only ever learns how many cards the host
+   holds — never which ones.
 
-To learn Vitest, a Vite-native testing framework, go to [Vitest documentation](https://vitest.dev/guide/)
+Because the engine looks a card up only in the hand of the player who sent the intent, a modified
+client cannot play cards it does not hold.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Peer discovery uses the public PeerJS broker. Two caveats worth knowing:
 
-### Code Splitting
+- Some school and workplace networks block WebRTC; a phone hotspot is the usual workaround.
+- If a connection drops mid-duel, the match ends rather than reconnecting.
 
-This section has moved here: [https://sambitsahoo.com/blog/vite-code-splitting-that-works.html](https://sambitsahoo.com/blog/vite-code-splitting-that-works.html)
+## Layout
 
-### Analyzing the Bundle Size
+```
+src/
+  game/       cards.js, arenas.js, engine.js — all rules, no React
+  net/peer.js WebRTC host/join wrapper
+  screens/    one file per screen
+  components/ shared card rendering
+```
 
-This section has moved here: [https://github.com/btd/rollup-plugin-visualizer#rollup-plugin-visualizer](https://github.com/btd/rollup-plugin-visualizer#rollup-plugin-visualizer)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://dev.to/hamdankhan364/simplifying-progressive-web-app-pwa-development-with-vite-a-beginners-guide-38cf](https://dev.to/hamdankhan364/simplifying-progressive-web-app-pwa-development-with-vite-a-beginners-guide-38cf)
-
-### Advanced Configuration
-
-This section has moved here: [https://vitejs.dev/guide/build.html#advanced-base-options](https://vitejs.dev/guide/build.html#advanced-base-options)
-
-### Deployment
-
-This section has moved here: [https://vitejs.dev/guide/build.html](https://vitejs.dev/guide/build.html)
-
-### Troubleshooting
-
-This section has moved here: [https://vitejs.dev/guide/troubleshooting.html](https://vitejs.dev/guide/troubleshooting.html)
+The engine is pure functions over a state object, which is why the same code runs both solo play and
+the online host, and why the rules are straightforward to unit-test.
