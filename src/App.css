@@ -58,7 +58,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding-bottom: 200px;
+  padding-bottom: 300px;
 }
 
 @keyframes fade-up {
@@ -1216,8 +1216,9 @@ p {
   position: fixed;
   right: 18px;
   bottom: 18px;
+  /* Spans the bottom of the screen, right edge to left edge. */
+  left: 18px;
   z-index: 40;
-  width: min(370px, calc(100vw - 36px));
   display: flex;
   flex-direction: column;
   background: #05070e;
@@ -1287,16 +1288,17 @@ p {
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-start;
-  gap: 4px;
-  max-height: 34vh;
+  gap: 5px;
+  min-height: 150px;
+  max-height: 40vh;
   overflow-y: auto;
 }
 
 .feed__list li {
   display: flex;
   gap: 7px;
-  font-size: 11.5px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.55;
   color: #6f7fa8;
 }
 
@@ -1334,7 +1336,9 @@ p {
 }
 
 .feed--min {
-  width: 190px;
+  /* Minimised, it tucks back into the right-hand corner. */
+  left: auto;
+  width: 220px;
 }
 
 .handbar {
@@ -1491,10 +1495,11 @@ p {
   .feed {
     right: 10px;
     bottom: 10px;
-    width: calc(100vw - 20px);
+    left: 10px;
   }
 
   .feed__list {
+    min-height: 0;
     max-height: 26vh;
   }
 

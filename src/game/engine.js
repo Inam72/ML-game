@@ -5,7 +5,7 @@ import { ALL_CARDS, getCard } from './cards';
 // and ships the result to the guest.
 
 const HAND_SIZE = 5;
-const MAX_LOG = 9;
+const MAX_LOG = 14;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const round2 = (v) => Number(v.toFixed(2));
