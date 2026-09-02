@@ -18,12 +18,15 @@ export default function Lobby({ net, arena, role, username, onStart, onCancel })
   const statusLine = () => {
     if (net.status === 'error') return net.error;
     if (net.status === 'gone') return 'Your opponent left the room.';
+    if (net.status === 'reconnecting') return 'Reconnecting to the matchmaking service…';
     if (isHost) {
       if (net.status === 'opening') return 'Opening your room…';
-      if (net.status === 'waiting') return 'Waiting for a challenger to join…';
+      if (net.status === 'waiting') return 'Room is live. Waiting for a challenger to join…';
       return `${net.opponent} is here and ready!`;
     }
-    if (net.status === 'connecting') return 'Finding the room…';
+    if (net.status === 'connecting') {
+      return net.attempt > 1 ? `Still looking… (try ${net.attempt} of ${net.of})` : 'Finding the room…';
+    }
     if (net.status === 'joined') return 'Connected — saying hello…';
     return `Joined ${net.opponent}'s duel. Waiting for them to start…`;
   };
@@ -84,8 +87,9 @@ export default function Lobby({ net, arena, role, username, onStart, onCancel })
         )}
 
         <p className="muted small">
-          Both players connect directly, browser to browser. If it will not connect, one of you may be
-          on a network that blocks peer-to-peer traffic — a phone hotspot usually fixes it.
+          {isHost
+            ? 'Keep this tab open and in front while you wait — the room only stays findable while this page is awake. If your friend cannot find the code, come back to this tab and have them try again.'
+            : 'Both players connect directly, browser to browser. If it will not connect, one of you may be on a network that blocks peer-to-peer traffic — a phone hotspot usually fixes it.'}
         </p>
 
         <div className="row row--between">

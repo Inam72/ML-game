@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { createDuel, endTurn, maskFor, playCard } from './engine';
+import { botMove, createDuel, endTurn, maskFor, playCard } from './engine';
 import { ARENAS } from './arenas';
-import { DEFAULT_DECK } from './cards';
+import { ALL_CARDS, DEFAULT_DECK, getCard } from './cards';
 
 const arena = ARENAS[0];
 
@@ -105,6 +105,72 @@ describe('winning', () => {
     g = endTurn(endTurn(g, 'p1'), 'p2');
     expect(g.winner).toBe('p2');
     expect(g.endReason).toMatch(/compute budget/i);
+  });
+});
+
+describe('the bot opponent', () => {
+  const withHand = (state, ids) => {
+    const g = structuredClone(state);
+    g.p2.hand = ids.map((id, i) => ({ ...getCard(id), instanceId: `${id}-${i}` }));
+    return g;
+  };
+  const played = (state, instanceId) => state.p2.hand.find((c) => c.instanceId === instanceId);
+
+  test('takes the kill when a sabotage would crash the rival', () => {
+    let g = newGame();
+    g.p1.metrics.stability = 30; // one hit from collapse
+    g = withHand(g, ['c_atk_nan_explosion', 'c_vit_huge', 'c_adamw_decay']);
+    g.p2.energy = 6;
+
+    expect(played(g, botMove(g)).id).toBe('c_atk_nan_explosion');
+  });
+
+  test('builds its model rather than attacking when nothing is at stake', () => {
+    let g = withHand(newGame(), ['c_atk_nan_explosion', 'c_llama3_moe']);
+    g.p2.energy = 6;
+
+    // CERN rewards backbones, and the rival is nowhere near winning.
+    expect(played(g, botMove(g)).id).toBe('c_llama3_moe');
+  });
+
+  test('does not waste a turn replacing a slot with something weaker', () => {
+    let g = withHand(newGame(), ['c_vit_huge', 'c_adamw_decay']);
+    g.p2.energy = 6;
+    g.p2.arch.model = getCard('c_llama3_moe'); // already the stronger backbone
+
+    expect(played(g, botMove(g)).id).toBe('c_adamw_decay');
+  });
+
+  test('reaches for defence when its own run is fragile', () => {
+    let g = withHand(newGame(), ['c_grad_clip', 'c_swiglu']);
+    g.p2.energy = 6;
+    g.p2.metrics.stability = 25;
+
+    expect(played(g, botMove(g)).id).toBe('c_grad_clip');
+  });
+
+  test('passes when it cannot afford anything', () => {
+    const g = withHand(newGame(), ['c_llama3_moe']);
+    g.p2.energy = 1; // the backbone costs 3
+    expect(botMove(g)).toBeNull();
+  });
+
+  test('plays a legal card every turn of a whole game', () => {
+    let g = createDuel({ arena, p1Name: 'A', p1Deck: DEFAULT_DECK, p2Name: 'Bot', p2Deck: ALL_CARDS.map((c) => c.id) });
+    let moves = 0;
+
+    while (!g.winner && g.turn <= arena.maxTurns) {
+      const move = botMove(g);
+      if (move) {
+        const before = g.p2.hand.length;
+        g = playCard(g, 'p2', move);
+        expect(g.p2.hand.length).toBe(before - 1); // the move was accepted
+        moves += 1;
+      }
+      g = endTurn(endTurn(g, 'p1'), 'p2');
+    }
+
+    expect(moves).toBeGreaterThan(3);
   });
 });
 

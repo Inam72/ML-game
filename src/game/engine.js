@@ -1,4 +1,4 @@
-import { ALL_CARDS, SLOT_ORDER, getCard } from './cards';
+import { ALL_CARDS, getCard } from './cards';
 
 // The engine is deliberately pure: every function takes a state and returns a
 // new one. Solo play runs it locally; online play runs it on the host's device
@@ -132,22 +132,61 @@ function judge(state) {
   return state;
 }
 
-// Simple opponent for solo play: fill empty slots first, then attack.
-export function botMove(state) {
-  const bot = state.p2;
-  const affordable = bot.hand.filter((c) => c.cost <= bot.energy);
+// Scores every card the bot can afford and plays the best one. It weighs the
+// same things a person does: finish if you can, stop the rival if they are
+// about to finish, fill an empty slot, shore up a shaky run, and respect the
+// arena bonus.
+const WINNING_MOVE = 500;
+
+export function scoreMove(state, side, card) {
+  const me = state[side];
+  const foe = state[other(side)];
+  const { arena } = state;
+
+  const foeThreat = foe.metrics.score / arena.targetScore;
+  const fragile = me.metrics.stability < 55;
+  let value = -card.cost * 1.5; // cheap plays leave compute for later turns
+
+  if (card.type === 'SABOTAGE') {
+    const stabilityHit = Math.abs(card.stats.targetStability || 0);
+    const scoreHit = Math.abs(card.stats.targetAcc || 0);
+    value += stabilityHit * 0.55 + scoreHit * 1.2 + (card.stats.targetLossSpike || 0) * 8;
+    // Hitting the rival matters far more once they are near the target.
+    value *= 0.75 + foeThreat * 1.6;
+    if (foe.metrics.stability + (card.stats.targetStability || 0) <= 0) value += WINNING_MOVE;
+    return value;
+  }
+
+  const mult = (c) => (c.type === arena.bonusType ? 1.35 : 1);
+  const gain = (card.stats.accBoost || 0) * mult(card);
+  const held = me.arch[card.slot];
+  // Swapping a slot only earns the difference, so an upgrade must be real.
+  const net = held ? gain - (held.stats.accBoost || 0) * mult(held) : gain;
+
+  value += net * 1.4;
+  value += (card.stats.lossReduce || 0) * 10;
+  value += (card.stats.stabilityBoost || 0) * (fragile ? 0.9 : 0.25);
+  value -= Math.max(0, card.stats.latencyMs || 0) * 0.05;
+  if (!held) value += 12; // an empty slot is a wasted part of the model
+  if (me.metrics.score + net >= arena.targetScore) value += WINNING_MOVE;
+
+  return value;
+}
+
+export function botMove(state, side = 'p2') {
+  const affordable = state[side].hand.filter((c) => c.cost <= state[side].energy);
   if (!affordable.length) return null;
 
-  const emptySlot = SLOT_ORDER.find((s) => !bot.arch[s]);
-  if (emptySlot) {
-    const fit = affordable.find((c) => c.slot === emptySlot);
-    if (fit) return fit.instanceId;
+  let best = null;
+  let bestScore = -Infinity;
+  for (const card of affordable) {
+    const value = scoreMove(state, side, card);
+    if (value > bestScore) {
+      bestScore = value;
+      best = card;
+    }
   }
-  const bonusFit = affordable.find((c) => c.type === state.arena.bonusType && c.slot !== 'target');
-  if (bonusFit) return bonusFit.instanceId;
-
-  const attack = affordable.find((c) => c.type === 'SABOTAGE');
-  return (attack || affordable[0]).instanceId;
+  return best?.instanceId ?? null;
 }
 
 // The guest must never see the host's hand.
